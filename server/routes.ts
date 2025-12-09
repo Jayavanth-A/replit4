@@ -9,11 +9,14 @@ import {
 } from "@shared/schema";
 import {
   sendSOSAlertSMS,
+  sendFullSOSAlert,
   sendJourneyStartSMS,
   sendJourneyCompletedSMS,
   sendJourneyOverdueSMS,
+  sendFullJourneyOverdueAlert,
   sendOTP,
-  verifyOTP
+  verifyOTP,
+  isVoiceConfigured
 } from "./vonage";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -275,7 +278,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const alert = await storage.createAlert(parsed.data);
       
-      // Send SOS SMS to all emergency contacts
+      // Send SOS alerts (SMS + Voice Call) to all emergency contacts
       if (parsed.data.type === "sos") {
         const user = await storage.getUser(parsed.data.userId);
         const contacts = await storage.getEmergencyContacts(parsed.data.userId);
@@ -283,21 +286,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (user && contacts.length > 0) {
           for (const contact of contacts) {
             try {
-              await sendSOSAlertSMS(
+              const result = await sendFullSOSAlert(
                 contact.phone,
                 contact.name,
                 user.name,
                 parsed.data.latitude ?? undefined,
                 parsed.data.longitude ?? undefined
               );
-            } catch (smsError) {
-              console.error(`Failed to send SOS SMS to ${contact.name}:`, smsError);
+              console.log(`SOS alert sent to ${contact.name}: SMS=${result.sms.success}, Call=${result.call.success}`);
+            } catch (alertError) {
+              console.error(`Failed to send SOS alert to ${contact.name}:`, alertError);
             }
           }
         }
       }
       
-      // Send journey overdue alert
+      // Send journey overdue alert (SMS + Voice Call)
       if (parsed.data.type === "overdue" && parsed.data.journeyId) {
         const user = await storage.getUser(parsed.data.userId);
         const contacts = await storage.getEmergencyContacts(parsed.data.userId);
@@ -306,7 +310,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (user && contacts.length > 0 && journey) {
           for (const contact of contacts) {
             try {
-              await sendJourneyOverdueSMS(
+              const result = await sendFullJourneyOverdueAlert(
                 contact.phone,
                 contact.name,
                 user.name,
@@ -315,8 +319,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 parsed.data.latitude ?? undefined,
                 parsed.data.longitude ?? undefined
               );
-            } catch (smsError) {
-              console.error(`Failed to send overdue SMS to ${contact.name}:`, smsError);
+              console.log(`Overdue alert sent to ${contact.name}: SMS=${result.sms.success}, Call=${result.call.success}`);
+            } catch (alertError) {
+              console.error(`Failed to send overdue alert to ${contact.name}:`, alertError);
             }
           }
         }

@@ -4,6 +4,7 @@ import {
   StyleSheet,
   Pressable,
   Alert,
+  ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -15,7 +16,9 @@ import * as Location from "expo-location";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
+import JourneyMap from "@/components/JourneyMap";
 import { useTheme } from "@/hooks/useTheme";
+import { useVoiceTrigger } from "@/hooks/useVoiceTrigger";
 import { useUserStore } from "@/stores/userStore";
 import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
@@ -25,19 +28,82 @@ export default function ActiveJourneyScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { theme } = useTheme();
-  const { activeJourney, completeJourney, sendSOSAlert, hasLocationPermission, fetchActiveJourney } = useUserStore();
+  const { activeJourney, completeJourney, sendSOSAlert, hasLocationPermission, fetchActiveJourney, user } = useUserStore();
 
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [showSOSModal, setShowSOSModal] = useState(false);
   const [isSendingSOS, setIsSendingSOS] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState<{latitude: number; longitude: number} | null>(null);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const locationWatchRef = useRef<Location.LocationSubscription | null>(null);
+
+  const triggerWords = user?.codeWord 
+    ? [user.codeWord.toLowerCase(), "help me", "help", "emergency"]
+    : ["help me", "help", "emergency"];
+
+  const handleVoiceTrigger = useCallback(() => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    setShowSOSModal(true);
+  }, []);
+
+  const { isListening, isSupported, startListening, stopListening, error: voiceError } = useVoiceTrigger({
+    triggerWords,
+    onTrigger: handleVoiceTrigger,
+    enabled: voiceEnabled,
+  });
 
   useFocusEffect(
     useCallback(() => {
       fetchActiveJourney();
-    }, [])
+      
+      if (voiceEnabled && isSupported) {
+        startListening();
+      }
+      
+      return () => {
+        stopListening();
+      };
+    }, [voiceEnabled, isSupported])
   );
+
+  useEffect(() => {
+    let mounted = true;
+    
+    const startLocationWatch = async () => {
+      if (hasLocationPermission) {
+        try {
+          locationWatchRef.current = await Location.watchPositionAsync(
+            {
+              accuracy: Location.Accuracy.Balanced,
+              timeInterval: 10000,
+              distanceInterval: 50,
+            },
+            (location) => {
+              if (mounted) {
+                setCurrentLocation({
+                  latitude: location.coords.latitude,
+                  longitude: location.coords.longitude,
+                });
+              }
+            }
+          );
+        } catch (e) {
+          console.error("Failed to watch location:", e);
+        }
+      }
+    };
+
+    startLocationWatch();
+
+    return () => {
+      mounted = false;
+      if (locationWatchRef.current) {
+        locationWatchRef.current.remove();
+      }
+    };
+  }, [hasLocationPermission]);
 
   useEffect(() => {
     if (!activeJourney) {
@@ -126,7 +192,10 @@ export default function ActiveJourneyScreen() {
       let latitude: string | undefined;
       let longitude: string | undefined;
 
-      if (hasLocationPermission) {
+      if (currentLocation) {
+        latitude = currentLocation.latitude.toString();
+        longitude = currentLocation.longitude.toString();
+      } else if (hasLocationPermission) {
         try {
           const location = await Location.getCurrentPositionAsync({
             accuracy: Location.Accuracy.High,
@@ -142,7 +211,7 @@ export default function ActiveJourneyScreen() {
       if (success) {
         Alert.alert(
           "SOS Sent",
-          "Emergency alert has been sent to your contacts. Stay safe!",
+          "Emergency alert with SMS and phone call has been sent to your contacts. Stay safe!",
           [{ text: "OK" }]
         );
       } else {
@@ -156,10 +225,27 @@ export default function ActiveJourneyScreen() {
     }
   };
 
+  const toggleVoiceActivation = () => {
+    if (voiceEnabled) {
+      stopListening();
+      setVoiceEnabled(false);
+    } else {
+      setVoiceEnabled(true);
+      if (isSupported) {
+        startListening();
+      }
+    }
+  };
+
   const isOverdue = timeRemaining <= 0;
-  const progress = activeJourney
-    ? Math.max(0, Math.min(1, 1 - timeRemaining / ((activeJourney.estimatedDuration + (activeJourney.bufferTime || 10)) * 60)))
-    : 0;
+
+  const origin = activeJourney?.startLatitude && activeJourney?.startLongitude
+    ? { latitude: parseFloat(activeJourney.startLatitude), longitude: parseFloat(activeJourney.startLongitude) }
+    : undefined;
+
+  const destination = activeJourney?.destLatitude && activeJourney?.destLongitude
+    ? { latitude: parseFloat(activeJourney.destLatitude), longitude: parseFloat(activeJourney.destLongitude) }
+    : undefined;
 
   if (!activeJourney) {
     return null;
@@ -167,7 +253,36 @@ export default function ActiveJourneyScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={[styles.content, { paddingTop: insets.top + Spacing["4xl"], paddingBottom: insets.bottom + Spacing["2xl"] }]}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.content, 
+          { paddingTop: insets.top + Spacing.lg, paddingBottom: insets.bottom + Spacing["2xl"] }
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.voiceIndicator}>
+          <Pressable 
+            style={[
+              styles.voiceButton,
+              { 
+                backgroundColor: isListening ? theme.success + "20" : theme.backgroundSecondary,
+                borderColor: isListening ? theme.success : theme.border,
+              }
+            ]}
+            onPress={toggleVoiceActivation}
+          >
+            <Feather 
+              name={isListening ? "mic" : "mic-off"} 
+              size={16} 
+              color={isListening ? theme.success : theme.textSecondary} 
+            />
+            <ThemedText style={[styles.voiceText, { color: isListening ? theme.success : theme.textSecondary }]}>
+              {isListening ? "Voice Active" : "Voice Off"}
+            </ThemedText>
+          </Pressable>
+        </View>
+
         <View style={styles.timerSection}>
           <View
             style={[
@@ -200,6 +315,16 @@ export default function ActiveJourneyScreen() {
             </View>
           )}
         </View>
+
+        {(origin && destination) && (
+          <View style={styles.mapContainer}>
+            <JourneyMap
+              origin={origin}
+              destination={destination}
+              currentLocation={currentLocation || undefined}
+            />
+          </View>
+        )}
 
         <Card style={styles.journeyCard}>
           <View style={styles.journeyRow}>
@@ -271,7 +396,7 @@ export default function ActiveJourneyScreen() {
             </Pressable>
           </View>
         </View>
-      </View>
+      </ScrollView>
 
       <SOSConfirmModal
         visible={showSOSModal}
@@ -287,24 +412,43 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  content: {
+  scrollView: {
     flex: 1,
+  },
+  content: {
     paddingHorizontal: Spacing.lg,
+  },
+  voiceIndicator: {
+    alignItems: "flex-start",
+    marginBottom: Spacing.md,
+  },
+  voiceButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  voiceText: {
+    fontSize: 12,
+    fontWeight: "500",
   },
   timerSection: {
     alignItems: "center",
-    marginBottom: Spacing["2xl"],
+    marginBottom: Spacing.xl,
   },
   timerCircle: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    borderWidth: 8,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    borderWidth: 6,
     justifyContent: "center",
     alignItems: "center",
   },
   timerText: {
-    fontSize: 40,
+    fontSize: 32,
     fontWeight: "700",
     fontVariant: ["tabular-nums"],
   },
@@ -325,9 +469,15 @@ const styles = StyleSheet.create({
     ...Typography.body,
     fontWeight: "500",
   },
+  mapContainer: {
+    height: 200,
+    marginBottom: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    overflow: "hidden",
+  },
   journeyCard: {
     padding: Spacing.lg,
-    marginBottom: Spacing["2xl"],
+    marginBottom: Spacing.xl,
   },
   journeyRow: {
     flexDirection: "row",

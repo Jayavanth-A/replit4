@@ -5,11 +5,25 @@ const vonage = new Vonage({
   apiSecret: process.env.VONAGE_API_SECRET || "",
 });
 
+const vonageVoice = process.env.VONAGE_APPLICATION_ID && process.env.VONAGE_PRIVATE_KEY
+  ? new Vonage({
+      applicationId: process.env.VONAGE_APPLICATION_ID,
+      privateKey: process.env.VONAGE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    })
+  : null;
+
 const VONAGE_FROM = "SafeConnect";
+const VONAGE_PHONE_NUMBER = process.env.VONAGE_PHONE_NUMBER || "";
 
 export interface SMSResult {
   success: boolean;
   messageId?: string;
+  error?: string;
+}
+
+export interface VoiceCallResult {
+  success: boolean;
+  callId?: string;
   error?: string;
 }
 
@@ -37,6 +51,91 @@ export async function sendSMS(to: string, text: string): Promise<SMSResult> {
   }
 }
 
+export async function makeEmergencyCall(
+  to: string,
+  message: string
+): Promise<VoiceCallResult> {
+  if (!vonageVoice) {
+    console.warn("Vonage Voice not configured - missing VONAGE_APPLICATION_ID or VONAGE_PRIVATE_KEY");
+    return { success: false, error: "Voice calling not configured" };
+  }
+
+  if (!VONAGE_PHONE_NUMBER) {
+    console.warn("Vonage phone number not configured - missing VONAGE_PHONE_NUMBER");
+    return { success: false, error: "Vonage phone number not configured" };
+  }
+
+  try {
+    const cleanPhone = to.replace(/[^\d+]/g, "");
+    
+    const response = await vonageVoice.voice.createOutboundCall({
+      to: [{
+        type: 'phone',
+        number: cleanPhone,
+      }],
+      from: {
+        type: 'phone',
+        number: VONAGE_PHONE_NUMBER,
+      },
+      ncco: [
+        {
+          action: 'talk',
+          text: message,
+          voiceName: 'Amy',
+          language: 'en-US',
+          bargeIn: false,
+        },
+        {
+          action: 'talk',
+          text: 'This message will now repeat.',
+          voiceName: 'Amy',
+        },
+        {
+          action: 'talk',
+          text: message,
+          voiceName: 'Amy',
+          language: 'en-US',
+        },
+      ],
+    });
+
+    console.log(`Voice call initiated to ${cleanPhone}, callId: ${response.uuid}`);
+    return { success: true, callId: response.uuid };
+  } catch (error: any) {
+    console.error("Vonage Voice error:", error);
+    return { success: false, error: error.message || "Unknown error" };
+  }
+}
+
+export async function sendSOSAlertCall(
+  contactPhone: string,
+  contactName: string,
+  userName: string,
+  latitude?: string,
+  longitude?: string
+): Promise<VoiceCallResult> {
+  let message = `Emergency Alert! This is an automated call from Safe Connect. ${userName} has triggered an emergency SOS alert and needs your help immediately.`;
+  
+  if (latitude && longitude) {
+    message += ` Their current location has been sent to you via text message with a Google Maps link.`;
+  }
+  
+  message += ` Please try to contact ${userName} immediately or call emergency services if you cannot reach them. This is urgent.`;
+  
+  return makeEmergencyCall(contactPhone, message);
+}
+
+export async function sendJourneyOverdueCall(
+  contactPhone: string,
+  contactName: string,
+  userName: string,
+  destination: string
+): Promise<VoiceCallResult> {
+  const message = `Attention! This is an automated call from Safe Connect. ${userName} has not arrived at their expected destination: ${destination}. They may need assistance. Please try to contact them immediately to ensure they are safe. If you cannot reach them, consider notifying emergency services.`;
+  
+  return makeEmergencyCall(contactPhone, message);
+}
+
 export async function sendSOSAlertSMS(
   contactPhone: string,
   contactName: string,
@@ -54,6 +153,27 @@ export async function sendSOSAlertSMS(
   message += `\n\nPlease try to contact ${userName} immediately or call emergency services if needed.`;
   
   return sendSMS(contactPhone, message);
+}
+
+export async function sendFullSOSAlert(
+  contactPhone: string,
+  contactName: string,
+  userName: string,
+  latitude?: string,
+  longitude?: string
+): Promise<{ sms: SMSResult; call: VoiceCallResult }> {
+  const smsPromise = sendSOSAlertSMS(contactPhone, contactName, userName, latitude, longitude);
+  
+  let callResult: VoiceCallResult;
+  if (isVoiceConfigured()) {
+    callResult = await sendSOSAlertCall(contactPhone, contactName, userName, latitude, longitude);
+  } else {
+    callResult = { success: false, error: "Voice calling not configured" };
+  }
+  
+  const smsResult = await smsPromise;
+  
+  return { sms: smsResult, call: callResult };
 }
 
 export async function sendJourneyStartSMS(
@@ -108,6 +228,29 @@ export async function sendJourneyOverdueSMS(
   return sendSMS(contactPhone, message);
 }
 
+export async function sendFullJourneyOverdueAlert(
+  contactPhone: string,
+  contactName: string,
+  userName: string,
+  destination: string,
+  startLocation: string,
+  lastLatitude?: string,
+  lastLongitude?: string
+): Promise<{ sms: SMSResult; call: VoiceCallResult }> {
+  const smsPromise = sendJourneyOverdueSMS(contactPhone, contactName, userName, destination, startLocation, lastLatitude, lastLongitude);
+  
+  let callResult: VoiceCallResult;
+  if (isVoiceConfigured()) {
+    callResult = await sendJourneyOverdueCall(contactPhone, contactName, userName, destination);
+  } else {
+    callResult = { success: false, error: "Voice calling not configured" };
+  }
+  
+  const smsResult = await smsPromise;
+  
+  return { sms: smsResult, call: callResult };
+}
+
 const otpStore = new Map<string, { code: string; expires: number; attempts: number }>();
 
 export function generateOTP(): string {
@@ -155,4 +298,8 @@ export function verifyOTP(phone: string, code: string): { valid: boolean; error?
   
   otpStore.delete(phone);
   return { valid: true };
+}
+
+export function isVoiceConfigured(): boolean {
+  return vonageVoice !== null && !!VONAGE_PHONE_NUMBER;
 }
