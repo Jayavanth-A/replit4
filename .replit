@@ -1,5 +1,5 @@
 entrypoint = "README.md"
-modules = ["nodejs-20", "web"]
+modules = ["nodejs-20", "bash", "web"]
 
 [nix]
 channel = "stable-25_05"
@@ -16,6 +16,10 @@ externalPort = 5000
 [[ports]]
 localPort = 8081
 externalPort = 80
+
+[[ports]]
+localPort = 39719
+externalPort = 3001
 
 [[ports]]
 localPort = 41929
