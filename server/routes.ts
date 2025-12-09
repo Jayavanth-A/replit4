@@ -87,9 +87,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const result = verifyOTP(phone, code);
       if (result.valid) {
-        res.json({ success: true, message: "Phone verified successfully" });
+        res.json({ valid: true, message: "Phone verified successfully" });
       } else {
-        res.status(400).json({ success: false, error: result.error });
+        res.status(400).json({ valid: false, error: result.error });
       }
     } catch (error) {
       console.error("Failed to verify OTP:", error);
@@ -195,7 +195,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const contacts = await storage.getEmergencyContacts(parsed.data.userId);
       
       if (user && contacts.length > 0) {
-        const expectedArrival = new Date(parsed.data.expectedArrival as string);
+        const expectedArrival = new Date(String(parsed.data.expectedArrival));
         
         for (const contact of contacts) {
           try {
@@ -287,8 +287,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 contact.phone,
                 contact.name,
                 user.name,
-                parsed.data.latitude,
-                parsed.data.longitude
+                parsed.data.latitude ?? undefined,
+                parsed.data.longitude ?? undefined
               );
             } catch (smsError) {
               console.error(`Failed to send SOS SMS to ${contact.name}:`, smsError);
@@ -312,8 +312,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 user.name,
                 journey.destination,
                 journey.startLocation,
-                parsed.data.latitude,
-                parsed.data.longitude
+                parsed.data.latitude ?? undefined,
+                parsed.data.longitude ?? undefined
               );
             } catch (smsError) {
               console.error(`Failed to send overdue SMS to ${contact.name}:`, smsError);
