@@ -21,6 +21,9 @@ interface UserState {
   setOnboarded: (value: boolean) => void;
   setLocationPermission: (value: boolean) => void;
   
+  sendOTP: (phone: string) => Promise<{ success: boolean; error?: string }>;
+  verifyOTP: (phone: string, code: string) => Promise<{ valid: boolean; error?: string }>;
+  createUserWithPhone: (phone: string, avatarIndex?: number) => Promise<User>;
   createUser: (name: string, avatarIndex?: number) => Promise<User>;
   fetchUser: (id: string) => Promise<User | null>;
   updateUser: (data: Partial<User>) => Promise<User | null>;
@@ -64,6 +67,40 @@ export const useUserStore = create<UserState>()(
       setActiveJourney: (journey) => set({ activeJourney: journey }),
       setOnboarded: (value) => set({ isOnboarded: value }),
       setLocationPermission: (value) => set({ hasLocationPermission: value }),
+
+      sendOTP: async (phone) => {
+        try {
+          const res = await apiRequest('POST', '/api/otp/send', { phone });
+          const data = await res.json();
+          return { success: data.success, error: data.error };
+        } catch (error: any) {
+          console.error('Failed to send OTP:', error);
+          return { success: false, error: error.message || 'Failed to send verification code' };
+        }
+      },
+
+      verifyOTP: async (phone, code) => {
+        try {
+          const res = await apiRequest('POST', '/api/otp/verify', { phone, code });
+          const data = await res.json();
+          return { valid: data.valid, error: data.error };
+        } catch (error: any) {
+          console.error('Failed to verify OTP:', error);
+          return { valid: false, error: error.message || 'Failed to verify code' };
+        }
+      },
+
+      createUserWithPhone: async (phone, avatarIndex = 0) => {
+        try {
+          const res = await apiRequest('POST', '/api/users', { phone, phoneVerified: true, avatarIndex });
+          const user = await res.json();
+          set({ user, userId: user.id, isOnboarded: true });
+          return user;
+        } catch (error) {
+          console.error('Failed to create user:', error);
+          throw error;
+        }
+      },
 
       createUser: async (name, avatarIndex = 0) => {
         try {

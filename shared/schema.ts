@@ -7,7 +7,10 @@ export const users = pgTable("users", {
   id: varchar("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
-  name: text("name").notNull(),
+  name: text("name").notNull().default("User"),
+  phone: text("phone").notNull(),
+  phoneVerified: boolean("phone_verified").default(false),
+  phoneVerifiedAt: timestamp("phone_verified_at"),
   height: text("height"),
   weight: text("weight"),
   skinTone: text("skin_tone"),
@@ -97,6 +100,8 @@ export const alertsRelations = relations(alerts, ({ one }) => ({
 
 export const insertUserSchema = createInsertSchema(users).pick({
   name: true,
+  phone: true,
+  phoneVerified: true,
   height: true,
   weight: true,
   skinTone: true,

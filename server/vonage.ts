@@ -25,11 +25,11 @@ export async function sendSMS(to: string, text: string): Promise<SMSResult> {
 
     const message = response.messages[0];
     if (message.status === "0") {
-      console.log(`SMS sent successfully to ${cleanPhone}, messageId: ${message["message-id"]}`);
-      return { success: true, messageId: message["message-id"] };
+      console.log(`SMS sent successfully to ${cleanPhone}, messageId: ${(message as any)["message-id"]}`);
+      return { success: true, messageId: (message as any)["message-id"] };
     } else {
-      console.error(`SMS failed to ${cleanPhone}:`, message["error-text"]);
-      return { success: false, error: message["error-text"] };
+      console.error(`SMS failed to ${cleanPhone}:`, (message as any).errorText || (message as any)["error-text"]);
+      return { success: false, error: (message as any).errorText || (message as any)["error-text"] };
     }
   } catch (error: any) {
     console.error("Vonage SMS error:", error);
