@@ -1,0 +1,11 @@
+0000000000000000000000000000000000000000 ea09f9d11dbc63a065fd380eea6bd7a605bccc67 praneethsaimakk <51029992-praneethsaimakk@users.noreply.replit.com> 1765277296 +0000	branch: Created from origin/main
+ea09f9d11dbc63a065fd380eea6bd7a605bccc67 b556de0d165b2a6f17328c8e5cd01f862e861738 praneethsaimakk <51029992-praneethsaimakk@users.noreply.replit.com> 1765277373 +0000	commit: Update tool configuration to improve project setup and environment stability
+b556de0d165b2a6f17328c8e5cd01f862e861738 4f8348cc6bf85d5ac6e906a8122a951c634153dc praneethsaimakk <51029992-praneethsaimakk@users.noreply.replit.com> 1765277416 +0000	commit: Add foundational setup and enable app testing on physical devices
+4f8348cc6bf85d5ac6e906a8122a951c634153dc 4fb9caa5249aae64d88fd581a8c9048eff064633 praneethsaimakk <51029992-praneethsaimakk@users.noreply.replit.com> 1765278740 +0000	commit: Add Vonage API credentials for sending OTP messages
+4fb9caa5249aae64d88fd581a8c9048eff064633 57b131d205c59dfaaf1139445049c41bc9ff2daa praneethsaimakk <51029992-praneethsaimakk@users.noreply.replit.com> 1765278995 +0000	commit: Add phone verification and journey notification features
+57b131d205c59dfaaf1139445049c41bc9ff2daa 39b8270d04421728cce662102306187c0c1abc20 praneethsaimakk <51029992-praneethsaimakk@users.noreply.replit.com> 1765279082 +0000	commit: Fix bug that occurs when creating a new journey
+39b8270d04421728cce662102306187c0c1abc20 4a981451bafa34a8b4d6d207b23c05f655fe4953 praneethsaimakk <51029992-praneethsaimakk@users.noreply.replit.com> 1765279141 +0000	commit: Update project documentation with system architecture and dependencies
+4a981451bafa34a8b4d6d207b23c05f655fe4953 eed1de22af1b1fc32a2dcc8ac8542da044161fa6 Jayavanth-A <jayavantha91@gmail.com> 1765291520 +0530	commit: Update before pushing to replit2 repo
+eed1de22af1b1fc32a2dcc8ac8542da044161fa6 eed1de22af1b1fc32a2dcc8ac8542da044161fa6 Jayavanth-A <jayavantha91@gmail.com> 1765291675 +0530	Branch: renamed refs/heads/main to refs/heads/main
+eed1de22af1b1fc32a2dcc8ac8542da044161fa6 eed1de22af1b1fc32a2dcc8ac8542da044161fa6 Jayavanth-A <jayavantha91@gmail.com> 1765291687 +0530	Branch: renamed refs/heads/main to refs/heads/main
+eed1de22af1b1fc32a2dcc8ac8542da044161fa6 eed1de22af1b1fc32a2dcc8ac8542da044161fa6 Jayavanth-A <jayavantha91@gmail.com> 1765292511 +0530	Branch: renamed refs/heads/main to refs/heads/main
